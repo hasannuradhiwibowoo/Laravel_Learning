@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Jadwal;
+use App\Models\JurnalKelas;
 use App\Models\Kelas;
 use App\Models\Pengaturan;
+use App\Models\Presensi;
 use App\Models\User;
 use App\Services\MonitoringService;
 use App\Services\WhatsAppService;
@@ -43,15 +45,31 @@ class WakaController extends Controller
         $tanggal = $request->input('tanggal', now()->toDateString());
 
         $belum = $this->monitoring->kelasBelumPresensi($putaran, $tanggal)
-            ->map(fn ($j) => [
-            'jam' => $j->jam_mulai->format('H:i').'-'.$j->jam_selesai->format('H:i'),
+            ->map(function (Jadwal $j) use ($tanggal) {
+                $adaPresensi = Presensi::where('jadwal_id', $j->id)
+                    ->where('tanggal', $tanggal)
+                    ->exists();
+                $adaJurnal = JurnalKelas::where('jadwal_id', $j->id)
+                    ->where('guru_id', $j->guru_id)
+                    ->where('tanggal', $tanggal)
+                    ->exists();
+
+                $status = match (true) {
+                    ! $adaPresensi && ! $adaJurnal => 'belum presensi & jurnal',
+                    ! $adaPresensi => 'belum presensi',
+                    default => 'belum jurnal',
+                };
+
+                return [
+                    'jam' => $j->jam_mulai->format('H:i').'-'.$j->jam_selesai->format('H:i'),
                     'jadwal_id' => $j->id,
                     'kelas' => $j->kelas?->nama,
-                'mapel' => $j->mataPelajaran?->nama,
-                'nama_guru' => $j->guru?->nama,
-                'ruang' => $j->ruang,
-                'status' => 'belum presensi',
-            ]);
+                    'mapel' => $j->mataPelajaran?->nama,
+                    'nama_guru' => $j->guru?->nama,
+                    'ruang' => $j->ruang,
+                    'status' => $status,
+                ];
+            });
 
         return response()->json([
             'putaran_aktif' => $putaran,
