@@ -9,9 +9,6 @@ use Illuminate\Support\Collection;
 
 class MonitoringService
 {
-    /**
-     * Daftar kelas/jadwal yang BELUM dilakukan presensi pada tanggal & putaran tertentu.
-     */
     public function kelasBelumPresensi(string $putaran, string $tanggal): Collection
     {
         $hariIni = Carbon::parse($tanggal)->locale('id')->dayName;
@@ -29,10 +26,6 @@ class MonitoringService
         })->values();
     }
 
-    /**
-     * Cek jadwal yang sudah lewat jam_mulai + toleransi tapi belum presensi
-     * (kandidat pengiriman WA otomatis ke guru).
-     */
     public function lewatToleransi(string $putaran, string $tanggal, int $menitToleransi = 15): Collection
     {
         $sekarang = Carbon::now();

@@ -53,12 +53,11 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logout berhasil.']);
     }
 
-    // Hanya Waka: reset password user lain
     public function resetPassword(Request $request)
     {
         $request->validate([
             'user_id' => 'required|exists:users,id',
-            'password' => 'required|string|min:6',
+            'password' => 'required|string|min:4',
         ]);
 
         $user = User::findOrFail($request->user_id);

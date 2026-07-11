@@ -6,9 +6,11 @@ use App\Models\Izin;
 use App\Models\Jadwal;
 use App\Models\JurnalKelas;
 use App\Models\Presensi;
+use App\Events\IzinMenungguUpdated;
 use App\Services\KehadiranService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class SiswaController extends Controller
 {
@@ -24,11 +26,15 @@ class SiswaController extends Controller
             ->get()
             ->unique('mata_pelajaran_id');
 
+        $latestPerJadwal = JurnalKelas::whereIn('jadwal_id', $mapels->pluck('id'))
+            ->orderByDesc('tanggal')
+            ->get()
+            ->groupBy('jadwal_id')
+            ->map->first();
+
         $progressKurikulum = [];
         foreach ($mapels as $j) {
-            $latest = JurnalKelas::where('jadwal_id', $j->id)
-                ->orderByDesc('tanggal')
-                ->first();
+            $latest = $latestPerJadwal->get($j->id);
             $progressKurikulum[] = [
                 'nama_mapel' => $j->mataPelajaran?->nama,
                 'persen_progress' => $latest?->progress_kurikulum ?? 0,
@@ -64,9 +70,14 @@ class SiswaController extends Controller
             'tanggal_mulai' => $request->tanggal_mulai,
             'tanggal_selesai' => $request->tanggal_selesai,
             'keterangan' => $request->keterangan,
-            'file_lampiran' => $path,
+            'file_lampiran' => Storage::disk('public')->url($path),
             'status' => 'menunggu',
         ]);
+
+        broadcast(new IzinMenungguUpdated(
+            Izin::where('status', 'menunggu')->count(),
+            $siswa->nama
+        ))->toOthers();
 
         return response()->json([
             'message' => 'Pengajuan izin berhasil dikirim.',

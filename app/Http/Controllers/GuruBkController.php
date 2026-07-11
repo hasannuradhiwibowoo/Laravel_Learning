@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Izin;
 use App\Models\Presensi;
+use App\Models\Siswa;
+use App\Events\IzinDiverifikasi;
 use App\Services\KehadiranService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class GuruBkController extends Controller
 {
@@ -24,7 +27,7 @@ class GuruBkController extends Controller
                 'tipe' => $i->tipe,
                 'tanggal' => $i->tanggal_mulai.' s.d '.$i->tanggal_selesai,
                 'keterangan' => $i->keterangan,
-                'foto_surat' => $i->file_lampiran,
+                'foto_surat' => $i->file_lampiran ? Storage::disk('public')->url($i->file_lampiran) : null,
                 'status' => $i->status,
             ]);
 
@@ -57,6 +60,13 @@ class GuruBkController extends Controller
             ]);
         }
 
+        broadcast(new IzinDiverifikasi(
+            $izin->siswa_id,
+            $izin->id,
+            $request->aksi,
+            $izin->catatan_penolakan
+        ))->toOthers();
+
         return response()->json(['message' => 'Izin '.$request->aksi.'.', 'izin' => $izin]);
     }
 
@@ -69,18 +79,16 @@ class GuruBkController extends Controller
 
     public function tingkatKehadiranSekolah()
     {
-        $siswas = \App\Models\Siswa::all();
+        $siswas = Siswa::all();
         if ($siswas->isEmpty()) {
             return response()->json(['tingkat_kehadiran_sekolah' => 0]);
         }
 
-        $total = 0;
-        foreach ($siswas as $s) {
-            $total += $this->kehadiran->hitung($s)['persen_kehadiran'];
-        }
+        $stats = $this->kehadiran->hitungBulk($siswas);
+        $total = $stats->sum('persen_kehadiran');
 
         return response()->json([
-            'tingkat_kehadiran_sekolah' => round($total / $siswas->count(), 2),
+            'tingkat_kehadiran_sekolah' => round($total / $stats->count(), 2),
         ]);
     }
 }

@@ -7,12 +7,6 @@ use App\Models\Presensi;
 
 class PresensiService
 {
-    /**
-     * Simpan/update presensi satu siswa untuk satu jadwal & tanggal.
-     * Jika siswa punya izin yang SUDAH DIVERIFIKASI BK pada tanggal tsb,
-     * status otomatis dipaksa sesuai izin dan field terkunci = true
-     * (guru tidak bisa mengubahnya lagi).
-     */
     public function simpan(array $data): Presensi
     {
         $izin = Izin::where('siswa_id', $data['siswa_id'])
@@ -37,9 +31,6 @@ class PresensiService
         );
     }
 
-    /**
-     * Cek apakah presensi seorang siswa sudah terkunci (izin diverifikasi).
-     */
     public function isTerkunci(int $siswaId, string $tanggal): bool
     {
         return Presensi::where('siswa_id', $siswaId)

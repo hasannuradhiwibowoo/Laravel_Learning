@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Jadwal;
+use App\Models\Kelas;
 use App\Models\Pengaturan;
+use App\Models\User;
 use App\Services\MonitoringService;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class WakaController extends Controller
 {
@@ -41,8 +44,9 @@ class WakaController extends Controller
 
         $belum = $this->monitoring->kelasBelumPresensi($putaran, $tanggal)
             ->map(fn ($j) => [
-                'jam' => $j->jam_mulai->format('H:i').'-'.$j->jam_selesai->format('H:i'),
-                'kelas' => $j->kelas?->nama,
+            'jam' => $j->jam_mulai->format('H:i').'-'.$j->jam_selesai->format('H:i'),
+                    'jadwal_id' => $j->id,
+                    'kelas' => $j->kelas?->nama,
                 'mapel' => $j->mataPelajaran?->nama,
                 'nama_guru' => $j->guru?->nama,
                 'ruang' => $j->ruang,
@@ -85,5 +89,77 @@ class WakaController extends Controller
             'status_kirim_wa' => 'Pesan WA (stub) tercatat di log. ID: '.$log->id,
             'log' => $log,
         ]);
+    }
+
+    public function listUser(Request $request)
+    {
+        $users = User::with(['siswa.kelas', 'guru'])
+            ->where('role', '!=', 'waka')
+            ->orderBy('role')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($u) => [
+                'id' => $u->id,
+                'nama' => $u->name,
+                'nisn_nip' => $u->nisn_nip,
+                'role' => $u->role,
+                'aktif' => (bool) $u->aktif,
+                'kelas' => $u->siswa?->kelas?->nama,
+            ]);
+
+        return response()->json(['users' => $users]);
+    }
+
+    public function listKelas()
+    {
+        $kelas = Kelas::orderBy('tingkat')->orderBy('nama')
+            ->get(['id', 'nama', 'tingkat', 'jurusan']);
+
+        return response()->json(['kelas' => $kelas]);
+    }
+
+    public function tambahUser(Request $request)
+    {
+        $data = $request->validate([
+            'role' => 'required|in:siswa,guru,guru_bk',
+            'nama' => 'required|string|max:255',
+            'nisn_nip' => 'required|string|unique:users,nisn_nip',
+            'jenis_kelamin' => 'nullable|in:L,P',
+            'no_hp' => 'nullable|string',
+            'kelas_id' => 'required_if:role,siswa|exists:kelas,id',
+            'password' => 'nullable|string|min:4',
+        ]);
+
+        $password = $data['password'] ?? $data['nisn_nip'];
+
+        $user = User::create([
+            'name' => $data['nama'],
+            'nisn_nip' => $data['nisn_nip'],
+            'password' => Hash::make($password),
+            'role' => $data['role'],
+            'aktif' => true,
+        ]);
+
+        if ($data['role'] === 'siswa') {
+            $user->siswa()->create([
+                'nis' => $data['nisn_nip'],
+                'nama' => $data['nama'],
+                'jenis_kelamin' => $data['jenis_kelamin'] ?? null,
+                'kelas_id' => $data['kelas_id'],
+                'no_hp' => $data['no_hp'] ?? null,
+            ]);
+        } else {
+            $user->guru()->create([
+                'nip' => $data['nisn_nip'],
+                'nama' => $data['nama'],
+                'jenis_kelamin' => $data['jenis_kelamin'] ?? null,
+                'no_hp' => $data['no_hp'] ?? null,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'User berhasil ditambahkan.',
+            'user' => $user->load(['siswa.kelas', 'guru']),
+        ], 201);
     }
 }

@@ -7,9 +7,6 @@ use Illuminate\Support\Collection;
 
 class JadwalService
 {
-    /**
-     * Jadwal mengajar seorang guru pada putaran tertentu (P1/P2).
-     */
     public function untukGuru(int $guruId, string $putaran): Collection
     {
         return Jadwal::with(['kelas', 'mataPelajaran'])
@@ -20,9 +17,6 @@ class JadwalService
             ->get();
     }
 
-    /**
-     * Jadwal pada hari & putaran tertentu (untuk monitoring waka).
-     */
     public function untukHari(string $hari, string $putaran): Collection
     {
         return Jadwal::with(['kelas', 'guru', 'mataPelajaran'])
